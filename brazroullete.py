@@ -17,12 +17,19 @@ MIN_SEQUENCIA_TERCO_COLUNA = 2  # Resultados para acionar a aposta de ATRASO (Es
 # NOVO: Define o tipo de roleta. 'EUROPEIA' (37 slots: 0-36) ou 'AMERICANA' (38 slots: 0-36, 00)
 TIPO_ROLETA = 'EUROPEIA' 
 
-# Mapeamento Unificado de Nomes/Termos
+# Mapeamento Unificado de Nomes/Termos para Feedback e Mapeamento
 NOMENCLATURA = {
     'R': 'VERMELHO', 'B': 'PRETO', 'G': 'VERDE (ZERO)', 'G00': 'VERDE (ZERO DUPLO)',
     'D1': "1ª DÚZIA (1-12)", 'D2': "2ª DÚZIA (13-24)", 'D3': "3ª DÚZIA (25-36)",
     'C1': "1ª COLUNA (1,4,7...)", 'C2': "2ª COLUNA (2,5,8...)", 'C3': "3ª COLUNA (3,6,9...)",
     'ZERO': 'ZERO (0)', 'ZEROD': 'ZERO DUPLO (00)', 'PAR': 'PAR', 'IMPAR': 'ÍMPAR'
+}
+
+# Mapeamento SIMPLIFICADO para a ORDEM FINAL (AÇÃO)
+NOMENCLATURA_ACAO = {
+    'R': 'vermelho', 'B': 'preto', 
+    'D1': "1ª dúzia", 'D2': "2ª dúzia", 'D3': "3ª dúzia",
+    'C1': "1ª coluna", 'C2': "2ª coluna", 'C3': "3ª coluna",
 }
 
 # === VARIÁVEIS DE ESTADO AVANÇADO (Gerenciado globalmente, mas recomendado para refatoração OO) ===
@@ -165,7 +172,8 @@ def _gerenciar_aposta(estado: Dict[str, Any], resultado_caiu: str, tipo_aposta: 
         # 1. VERIFICAÇÃO DE VITÓRIA
         if resultado_caiu == alvo:
             ganho = valor * ganho_fator
-            mensagem += f"✅ VITÓRIA no {NOMENCLATURA.get(alvo)}. Ganhos de R$ {ganho:.2f}. RESET.\n"
+            # Feedback simplificado
+            mensagem += f"✅ VITÓRIA ({tipo_aposta.upper()})! Ganhos: R$ {ganho:.2f}. RESET.\n"
             estado['VALOR'] = APOSTA_INICIAL
             estado['PERDAS'] = 0
             estado['APOSTA_EM'] = None
@@ -173,31 +181,27 @@ def _gerenciar_aposta(estado: Dict[str, Any], resultado_caiu: str, tipo_aposta: 
         
         # 2. VERIFICAÇÃO DE ZERO (PERDA e DOBRA)
         elif resultado_caiu in ('G', 'G00'):
-            mensagem += "🟡 ZERO (VERDE) CAIU. Considerado PERDA. Risco de 0/00.\n"
+            mensagem += f"🟡 ZERO ({tipo_aposta.upper()}) CAIU. Perda. Fator: {estado['PERDAS'] + 1}x -> {estado['PERDAS'] + 2}x\n"
             estado['PERDAS'] += 1
             estado['VALOR'] *= FATOR_MARTINGALE
             
         # 3. VERIFICAÇÃO DE DERROTA (PERDA e DOBRA)
         else:
-            termo_resultado = NOMENCLATURA.get(resultado_caiu, resultado_caiu)
-            mensagem += f"❌ DERROTA! Caiu {termo_resultado}. Próximo Fator.\n"
+            # Não exibe o termo do resultado para não poluir a saída
+            mensagem += f"❌ DERROTA ({tipo_aposta.upper()}). Perda. Fator: {estado['PERDAS'] + 1}x -> {estado['PERDAS'] + 2}x\n"
             estado['PERDAS'] += 1
             estado['VALOR'] *= FATOR_MARTINGALE
         
         # 4. TRATAMENTO APÓS PERDA (Continuar Aposta no Alvo)
         if estado['APOSTA_EM'] and estado['PERDAS'] > 0:
             if estado['PERDAS'] > MAX_PERDAS_CONSECUTIVAS:
-                mensagem += f"🚨 ALERTA: Limite de perdas atingido ({MAX_PERDAS_CONSECUTIVAS}x). Voltando à aposta inicial.\n"
+                mensagem += f"🚨 ALERTA ({tipo_aposta.upper()}): Limite de perdas atingido ({MAX_PERDAS_CONSECUTIVAS}x). RESET.\n"
                 estado['VALOR'] = APOSTA_INICIAL
                 estado['PERDAS'] = 0
                 estado['APOSTA_EM'] = None
                 return mensagem, None
             
-            # Recomenda a aposta para recuperar a perda
-            probabilidade_real = (18 / NUM_SLOTS) if tipo_aposta == 'COR' else (12 / NUM_SLOTS)
-            termo_alvo = NOMENCLATURA.get(estado['APOSTA_EM'], estado['APOSTA_EM'])
-            mensagem += f"➡️ PRÓXIMA AÇÃO: Aposte R$ {estado['VALOR']:.2f} no {termo_alvo}.\n"
-            mensagem += f"   (Probabilidade real de vitória: {probabilidade_real * 100:.2f}%)"
+            # Sinal Ativo
             sinal_ativo = (estado['APOSTA_EM'], estado['VALOR'], tipo_aposta)
 
     return mensagem, sinal_ativo
@@ -205,14 +209,12 @@ def _gerenciar_aposta(estado: Dict[str, Any], resultado_caiu: str, tipo_aposta: 
 def analisar_sequencia_cor(estado_key: str, cor_caiu: str) -> Tuple[str, Tuple[Any, float, str] | None]:
     """Analisa a sequência simples (Cor) e gera sinal Martingale (3x)."""
     estado = ESTADOS[estado_key]
-    mensagem = f"\n[Análise {estado_key.upper()}] Histórico: {formatar_historico(estado['HISTORICO'][:5])}...\n"
     
     # 1. GERENCIAR MARTINGALE PENDENTE
     msg_martingale, sinal_ativo = _gerenciar_aposta(estado, cor_caiu, estado_key)
-    mensagem += msg_martingale
     
     if sinal_ativo:
-        return mensagem, sinal_ativo 
+        return msg_martingale, sinal_ativo 
     
     # 2. DEFINIÇÃO DO PRÓXIMO SINAL (Se não houver aposta pendente)
     if estado['APOSTA_EM'] is None and len(estado['HISTORICO']) >= estado['MIN_SEQUENCIA']:
@@ -230,34 +232,31 @@ def analisar_sequencia_cor(estado_key: str, cor_caiu: str) -> Tuple[str, Tuple[A
         if sequencia >= estado['MIN_SEQUENCIA'] and cor_referencia in ('R', 'B'):
             # Aposta na cor oposta (Martingale contra a streak)
             estado['APOSTA_EM'] = 'B' if cor_referencia == 'R' else 'R' 
-            probabilidade_real = 18 / NUM_SLOTS
             
-            mensagem += f"💰 SINAL DETECTADO: {sequencia}x {NOMENCLATURA.get(cor_referencia)} consecutivos.\n"
-            mensagem += f"🎯 APOSTE AGORA: R$ {estado['VALOR']:.2f} no {NOMENCLATURA.get(estado['APOSTA_EM'])}.\n"
-            mensagem += f"   (Probabilidade real de vitória: {probabilidade_real * 100:.2f}% - A sequência não altera a probabilidade!)\n"
-            return mensagem, (estado['APOSTA_EM'], estado['VALOR'], estado_key)
+            # Sinal Ativo
+            sinal_ativo = (estado['APOSTA_EM'], estado['VALOR'], estado_key)
+            msg_martingale += f"💰 SINAL ({estado_key.upper()}): Sequência de {sequencia}x detectada. Iniciar Martingale.\n"
+            return msg_martingale, sinal_ativo
             
         else:
-            mensagem += "😴 Aguardando sinal de Cor.\n"
+            return msg_martingale, None # Aguardando sinal
             
     elif estado['APOSTA_EM'] is None:
-        mensagem += f"📚 Aguardando histórico suficiente ({estado['MIN_SEQUENCIA']}+) de Cor.\n"
+        return msg_martingale, None # Aguardando histórico
         
-    return mensagem, None 
+    return msg_martingale, None 
 
 def analisar_sequencia_tercos_colunas(estado_key: str, resultado_terco: str) -> Tuple[str, Tuple[Any, float, str] | None]:
     """Analisa a sequência de Terços (D1/D2/D3) ou Colunas (C1/C2/C3) - Estratégia de Atraso (2/3)."""
     
     estado = ESTADOS[estado_key]
     todos_tercos = ['D1', 'D2', 'D3'] if estado_key == 'DUZIA' else ['C1', 'C2', 'C3']
-    mensagem = f"\n[Análise {estado_key.upper()}] Histórico: {formatar_historico(estado['HISTORICO'][:5])}...\n"
 
     # 1. GERENCIAR MARTINGALE PENDENTE
     msg_martingale, sinal_ativo = _gerenciar_aposta(estado, resultado_terco, estado_key)
-    mensagem += msg_martingale
     
     if sinal_ativo:
-        return mensagem, sinal_ativo 
+        return msg_martingale, sinal_ativo 
 
     # 2. DEFINIÇÃO DO PRÓXIMO SINAL (Aposta no Terço/Coluna em Atraso)
     if estado['APOSTA_EM'] is None:
@@ -265,38 +264,32 @@ def analisar_sequencia_tercos_colunas(estado_key: str, resultado_terco: str) -> 
         if len(estado['HISTORICO']) >= estado['MIN_SEQUENCIA']:
             
             recentes = estado['HISTORICO'][:estado['MIN_SEQUENCIA']]
-            
-            # Contagem dos terços/colunas que caíram recentemente (ignorando Zero)
             contagem_recente = Counter(t for t in recentes if t in todos_tercos)
-
-            # Terços que faltaram nos últimos N resultados
             tercos_ausentes = [t for t in todos_tercos if t not in contagem_recente]
             
-            # Sinal: Se APENAS UM terço/coluna está ausente nos últimos N resultados,
-            # ou seja, 2 dos 3 terços caíram.
+            # Sinal: Se APENAS UM terço/coluna está ausente (Estratégia 2/3)
             if len(tercos_ausentes) == 1:
                 terco_sinal = tercos_ausentes[0]
                 estado['APOSTA_EM'] = terco_sinal
-                probabilidade_real = 12 / NUM_SLOTS
                 
-                termo_sinal = NOMENCLATURA.get(terco_sinal)
-                mensagem += f"💰 SINAL DETECTADO: 2 dos 3 Terços/Colunas caíram ({list(contagem_recente.keys())}). {termo_sinal} está em atraso.\n"
-                mensagem += f"🎯 APOSTE AGORA: R$ {estado['VALOR']:.2f} no {termo_sinal}.\n"
-                mensagem += f"   (Probabilidade real de vitória: {probabilidade_real * 100:.2f}% - A sequência não altera a probabilidade!)\n"
+                # Sinal Ativo
+                sinal_ativo = (estado['APOSTA_EM'], estado['VALOR'], estado_key)
+                termo_sinal = NOMENCLATURA.get(terco_sinal).split('(')[0].strip()
+                msg_martingale += f"💰 SINAL ({estado_key.upper()}): {termo_sinal} em atraso. Iniciar Martingale.\n"
                 
-                return mensagem, (estado['APOSTA_EM'], estado['VALOR'], estado_key)
+                return msg_martingale, sinal_ativo
             else:
-                mensagem += "😴 Aguardando sinal de Terço/Coluna em atraso.\n"
+                return msg_martingale, None # Aguardando sinal
 
         elif estado['APOSTA_EM'] is None:
-            mensagem += f"📚 Aguardando {estado['MIN_SEQUENCIA']}+ resultados para análise de Terços/Colunas.\n"
+            return msg_martingale, None # Aguardando histórico
             
-    return mensagem, None
+    return msg_martingale, None
 
 
 def aplicar_estrategia_avancada(num_str: str):
     """
-    Função principal que gerencia todas as estratégias simultaneamente e consolida o feedback.
+    Função principal que gerencia todas as estratégias e retorna a ordem de ação concisa.
     """
     # Validação de entrada
     valid_numbers = [str(i) for i in range(37)]
@@ -307,15 +300,13 @@ def aplicar_estrategia_avancada(num_str: str):
 
     resultado_mapa = get_tercos_colunas(num_str)
     
-    # 1. Rastreamento e Registro
+    # 1. Rastreamento e Registro (Utiliza TODO O HISTÓRICO, atendendo à precisão)
     global NUMEROS_RASTREAMENTO
     global TODOS_GIROS_HISTORICO
     
-    # Atualiza o rastreamento de frequência
     NUMEROS_RASTREAMENTO[num_str] = NUMEROS_RASTREAMENTO.get(num_str, 0) + 1
     TODOS_GIROS_HISTORICO.append(num_str)
     
-    # Atualiza Históricos de Estado
     ESTADOS['COR']['HISTORICO'].insert(0, resultado_mapa['COR'])
     ESTADOS['DUZIA']['HISTORICO'].insert(0, resultado_mapa['TERCO'])
     ESTADOS['COLUNA']['HISTORICO'].insert(0, resultado_mapa['COLUNA'])
@@ -323,120 +314,65 @@ def aplicar_estrategia_avancada(num_str: str):
     for key in ESTADOS:
         ESTADOS[key]['HISTORICO'] = ESTADOS[key]['HISTORICO'][:10]
 
-    mensagem_geral = f"=========================================================\n"
-    mensagem_geral += f"➡️ RESULTADO: {num_str} - {NOMENCLATURA.get(resultado_mapa['COR'])} | DÚZIA: {NOMENCLATURA.get(resultado_mapa['TERCO'])} | COLUNA: {NOMENCLATURA.get(resultado_mapa['COLUNA'])}\n"
-    mensagem_geral += f"=========================================================\n"
-
+    # Mensagem de resultado atual (Apenas feedback de entrada)
+    output_result = f"➡️ CAIU: {num_str} - {NOMENCLATURA.get(resultado_mapa['COR'])} | DÚZIA: {NOMENCLATURA.get(resultado_mapa['TERCO'])} | COLUNA: {NOMENCLATURA.get(resultado_mapa['COLUNA'])}\n"
+    output_result += "--------------------------------------\n"
+    
     sinais_ativos = []
-
-    # 2. Analisar e gerenciar estados
+    
+    # 2. Analisar e gerenciar estados (Coletando mensagens de feedback e sinais ativos)
     msg_cor, sinal_cor = analisar_sequencia_cor('COR', resultado_mapa['COR'])
-    mensagem_geral += msg_cor
-    if sinal_cor:
-        sinais_ativos.append(sinal_cor)
+    if sinal_cor: sinais_ativos.append(sinal_cor)
 
     msg_duzia, sinal_duzia = analisar_sequencia_tercos_colunas('DUZIA', resultado_mapa['TERCO'])
-    mensagem_geral += msg_duzia
-    if sinal_duzia:
-        sinais_ativos.append(sinal_duzia)
+    if sinal_duzia: sinais_ativos.append(sinal_duzia)
 
     msg_coluna, sinal_coluna = analisar_sequencia_tercos_colunas('COLUNA', resultado_mapa['COLUNA'])
-    mensagem_geral += msg_coluna
-    if sinal_coluna:
-        sinais_ativos.append(sinal_coluna)
+    if sinal_coluna: sinais_ativos.append(sinal_coluna)
         
-    # 3. CONSOLIDAR A AÇÃO MAIS IMPORTANTE E GERAR INSTRUÇÃO FINAL
-    top_frios, top_quentes = analisar_frequencia_numeros()
+    output_result += msg_cor + msg_duzia + msg_coluna
     
-    mensagem_geral += "\n--- CONSOLIDAÇÃO DE AÇÕES ---\n"
-    mensagem_geral += f"❄️ NÚMEROS FRIOS (Baixa Frequência): {top_frios}\n"
-    mensagem_geral += f"🔥 NÚMEROS QUENTES (Alta Frequência): {top_quentes}\n"
-    mensagem_geral += "--------------------------------------\n"
-
-    instrucoes_finais = [] # Lista para construir a ORDEM FINAL detalhada
+    # 3. CONSOLIDAÇÃO SIMPLES DA ORDEM FINAL (APENAS A AÇÃO)
+    top_frios, _ = analisar_frequencia_numeros()
+    
+    instrucoes_finais = [] 
     sinais_2_por_1 = [s for s in sinais_ativos if s[2] in ['DUZIA', 'COLUNA']]
     sinais_1_por_1 = [s for s in sinais_ativos if s[2] == 'COR']
     
-    # 1. Processar todos os sinais de Dúzia/Coluna (2:1)
+    # Processar Dúzia/Coluna (Ex: R$ 1.00 na 1ª dúzia)
     for aposta_em, valor, tipo in sinais_2_por_1:
-        estado = ESTADOS[tipo]
-        terco_mapa = NOMENCLATURA.get(aposta_em, aposta_em)
-        delay = estado['PERDAS'] # Número de perdas consecutivas (atraso)
+        termo_alvo = NOMENCLATURA_ACAO.get(aposta_em, aposta_em)
+        # Apostas em dúzias/colunas usam 'na'
+        instrucoes_finais.append(f"R$ {valor:.2f} na {termo_alvo}") 
 
-        # Instrução Principal Martingale (Dúzia/Coluna) - MAIS ESPECÍFICA
-        instrucoes_finais.append(f"MARTINGALE (2:1): R$ {estado['VALOR']:.2f} NO {terco_mapa} ({tipo.upper()}) | ATRASO: {delay}x")
-        mensagem_geral += f"🔥 Ação Ativa (x3): R$ {estado['VALOR']:.2f} no {terco_mapa} ({tipo.upper()}) | Fator Martingale: {delay+1}x\n"
-        
-        # Sugestão de Cobertura Fria (Apenas se for Dúzia e houver atraso real)
-        if tipo == 'DUZIA' and delay > 0:
-            limites_duzia = {'D1': (1, 12), 'D2': (13, 24), 'D3': (25, 36)}
-            min_num, max_num = limites_duzia[aposta_em]
-            # Filtra os números frios que caem no terço sendo apostado
-            frios_no_terco = [n for n in top_frios if isinstance(n, int) and min_num <= n <= max_num]
-            
-            if frios_no_terco:
-                instrucoes_finais.append(f"COBERTURA PLENO: R$ {APOSTA_INICIAL:.2f} NOS FRIOS {frios_no_terco}")
-                mensagem_geral += f"  > Sugestão: Cobertura (x36) nos frios {frios_no_terco}\n"
-
-    # 2. Processar todos os sinais de Cor (1:1)
+    # Processar Cor (Ex: R$ 1.00 no preto)
     for aposta_em, valor, tipo in sinais_1_por_1:
-        estado = ESTADOS[tipo]
-        cor_mapa = NOMENCLATURA.get(estado['APOSTA_EM'])
-        delay = estado['PERDAS'] # Número de perdas consecutivas (atraso)
+        cor_mapa = NOMENCLATURA_ACAO.get(aposta_em)
+        # Apostas em cor usam 'no'
+        instrucoes_finais.append(f"R$ {valor:.2f} no {cor_mapa}")
 
-        instrucoes_finais.append(f"MARTINGALE (1:1): R$ {estado['VALOR']:.2f} NO {cor_mapa} (COR) | ATRASO: {delay}x")
-        mensagem_geral += f"🟡 Ação Ativa (x2): R$ {estado['VALOR']:.2f} no {cor_mapa} (COR) | Fator Martingale: {delay+1}x\n"
-    
-    # 3. Se não houver Martingale, a instrução é AGUARDE
-    if not instrucoes_finais:
-        instrucoes_finais.append("AGUARDE O PRÓXIMO SINAL")
-        mensagem_geral += "🔄 Não há sinal ativo de Martingale no momento.\n"
-        
-        # Sugerir monitoramento de frios
-        estatisticas = calcular_estatisticas_basicas()
-        if estatisticas['total_giros'] > 10 and top_frios:
-              instrucoes_finais.append(f"MONITORE: Pleno mínimo (R$ {APOSTA_INICIAL:.2f}) nos frios {top_frios}")
-              mensagem_geral += f"   > Sugestão: Monitore os frios {top_frios} com aposta mínima de R$ {APOSTA_INICIAL:.2f}.\n"
-
-
-    # Final Order String generation
-    final_order = " | ".join(instrucoes_finais)
-
-    # 4. Análise Matemática Profissional
+    # Sugerir cobertura de frios (Se não houver Martingale ativo)
     estatisticas = calcular_estatisticas_basicas()
-    house_edge_percent = estatisticas['house_edge_global'] * 100
+    if not sinais_ativos and estatisticas['total_giros'] > 10 and top_frios:
+          instrucoes_finais.append(f"Monitorar Frios R$ {APOSTA_INICIAL:.2f}: {top_frios}")
     
-    mensagem_geral += "\n--- ANÁLISE DE ALTO NÍVEL (MATEMÁTICA) ---\n"
-    mensagem_geral += f"⚠️ RISCO: Expectativa Negativa: {-house_edge_percent:.2f}% (House Edge)\n"
+    final_order = " e ".join(instrucoes_finais)
     
-    if estatisticas['total_giros'] > 0:
-        # AVISO: A estratégia codifica a Falácia do Jogador. A EV é SEMPRE negativa!
-        mensagem_geral += f"Giros Totais: {estatisticas['total_giros']}\n"
-        mensagem_geral += f"Desvio Zero (E): {estatisticas['desvio_zero'] * 100:.2f}% (Se +, Zero(s) caiu mais que o esperado)\n"
-        mensagem_geral += f"Variância Amostral (χ²): {estatisticas['chi2']:.2f} (Medida de desvio de uniformidade)\n"
+    if not final_order:
+        final_order = "Aguarde Sinal"
+        
+    # Retorna o feedback operacional + Ação final
+    output_result += f"🎯 AÇÃO: {final_order}\n"
+    output_result += "--------------------------------------"
     
-    mensagem_geral += "--------------------------------------\n"
-    
-    # 5. ORDEM FINAL OBRIGATÓRIA (Foco da Saída)
-    mensagem_geral += f"=========================================================\n"
-    mensagem_geral += f"🎯 ORDEM FINAL (AÇÃO URGENTE): {final_order}\n"
-    mensagem_geral += f"========================================================="
-
-    return mensagem_geral
+    return output_result
 
 
 def main():
-    print("=========================================================")
-    print("==== ASSISTENTE DE ESTRATÉGIAS DE ROLETA (INTERATIVO) =====")
-    print("=========================================================")
-    print(f"ATENÇÃO: Roleta configurada como {TIPO_ROLETA} (Slots: {NUM_SLOTS})")
-    
-    # Aviso de Risco Crítico
-    print("\n⚠️ ALERTA DE RISCO: TODAS as estratégias (Martingale/Atraso) na roleta têm EXPECTATIVA DE VALOR NEGATIVA devido ao House Edge. Use com responsabilidade.")
-    
-    print("\nComandos: Digite o NÚMERO que caiu (0-36, ou 00 se for americana) ou SAIR.\n")
+    # Removendo todos os prints de introdução para um console limpo
+    print("\n[Assistente de Roleta Ativo]")
 
-    valid_input_prompt = "Qual número caiu na roleta (0-36"
+    valid_input_prompt = "Qual número caiu (0-36"
     if TIPO_ROLETA == 'AMERICANA':
         valid_input_prompt += " ou 00"
     valid_input_prompt += ") ou SAIR? "
@@ -446,10 +382,9 @@ def main():
             prompt = input(valid_input_prompt).strip().upper()
             
             if prompt == "SAIR":
-                print("\nEncerrando Assistente. Tenha um ótimo dia!")
+                print("\nEncerrando Assistente.")
                 break
             
-            # Validação para '00' na roleta americana
             if TIPO_ROLETA == 'AMERICANA' and prompt == '00':
                 num_str = '00'
             else:
@@ -464,6 +399,7 @@ def main():
                     print("ERRO: Entrada inválida. Digite um número válido (0-36 ou 00) ou SAIR.")
                     continue
             
+            # Chama a função e imprime o resultado conciso
             feedback = aplicar_estrategia_avancada(num_str)
             print(feedback)
                 
