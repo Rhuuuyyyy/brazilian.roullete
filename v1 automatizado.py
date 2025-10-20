@@ -418,7 +418,7 @@ def main_monitor():
     valid_range = [str(i) for i in range(37)]
     if TIPO_ROLETA == 'AMERICANA': valid_range.append('00')
     
-    config_ocr_padrao = r'--oem 3 --psm 8 -c tessedit_char_whitelist=0123456789'
+    config_ocr_padrao = r'--oem 3 --psm 10 -c tessedit_char_whitelist=0123456789'
     ultimo_numero_lido = None
     
     try:
