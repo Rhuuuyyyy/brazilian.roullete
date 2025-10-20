@@ -3,7 +3,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Dict, Any, Optional
-import os # Importado para criar pastas
+import os
 import tkinter as tk # Importado para a nova seleção gráfica
 
 # --- Novas Bibliotecas para OCR e Automação ---
@@ -19,7 +19,6 @@ import numpy as np
 # ====================================================================
 
 # Mude para False para desativar as imagens de debug e logs extras, aumentando a velocidade.
-# Quando "não funciona", deixe como True para diagnosticar o problema.
 MODO_DEBUG = True 
 TESSERACT_PATH = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
@@ -302,7 +301,7 @@ class MotorRoleta:
         return output
 
 def configurar_e_preparar() -> Optional[MotorRoleta]:
-    print("\n[Assistente de Roleta v10 - Seleção Gráfica]")
+    print("\n[Assistente de Roleta v11 - Seletor Gráfico Persistente]")
     banca_inicial = 0.0
     while True:
         try:
@@ -337,52 +336,66 @@ def configurar_e_preparar() -> Optional[MotorRoleta]:
     return motor
 
 # ====================================================================
-# === PEÇA 2: O CALIBRADOR GRÁFICO (NOVA VERSÃO) =====================
+# === PEÇA 2: O CALIBRADOR GRÁFICO (NOVA VERSÃO PERSISTENTE) =========
 # ====================================================================
 
 class SelectionWindow:
-    """ Janela gráfica para selecionar a área de captura. """
+    """ Janela gráfica persistente para selecionar a área de captura. """
     def __init__(self, root):
         self.root = root
         self.region = None
+        self.is_confirmed = False
+        
         # Configurações da janela
-        self.root.attributes('-alpha', 0.4)
+        self.root.attributes('-alpha', 0.5)
         self.root.attributes('-topmost', True)
         self.root.overrideredirect(True)
+        self.root.configure(bg='#222')
 
         # Posicionar a janela no centro do ecrã
-        start_width, start_height = 200, 100
+        start_width, start_height = 250, 120
         screen_width, screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
         start_x = (screen_width // 2) - (start_width // 2)
         start_y = (screen_height // 2) - (start_height // 2)
-        self.root.geometry(f'{start_width}x{start_height}+{start_x}+{start_y}')
+        self.root.geometry(f'{start_width}x{start_height}+{start_x}+{y}')
+        self.update_region() # Define a região inicial
 
-        # Frame principal com borda vermelha
-        self.main_frame = tk.Frame(self.root, highlightbackground='red', highlightthickness=2)
-        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        # Frame principal com borda ciano
+        self.main_frame = tk.Frame(self.root, bg='#222', highlightbackground='cyan', highlightthickness=3)
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=3, pady=3)
 
+        # "Barra de título" para arrastar
+        self.title_bar = tk.Label(self.main_frame, text="Área de Leitura", bg="cyan", fg="black", font=("Arial", 10, "bold"))
+        self.title_bar.pack(fill=tk.X, side=tk.TOP)
+        
         # Variáveis para arrastar a janela
         self._drag_start_x = 0
         self._drag_start_y = 0
         
-        self.main_frame.bind("<ButtonPress-1>", self.on_press)
-        self.main_frame.bind("<B1-Motion>", self.on_drag)
+        self.title_bar.bind("<ButtonPress-1>", self.on_press)
+        self.title_bar.bind("<B1-Motion>", self.on_drag)
 
         # "Grip" para redimensionar no canto inferior direito
-        self.grip = tk.Label(self.main_frame, bg="red", cursor="sizing")
-        self.grip.place(relx=1.0, rely=1.0, anchor='se', width=10, height=10)
+        self.grip = tk.Frame(self.main_frame, bg="cyan", cursor="sizing")
+        self.grip.place(relx=1.0, rely=1.0, anchor='se', width=15, height=15)
         self.grip.bind("<ButtonPress-1>", self.on_press_resize)
         self.grip.bind("<B1-Motion>", self.on_resize)
         
         # Texto de instruções dentro da janela
-        instructions = tk.Label(self.main_frame,
-                                text="Arraste para mover\nUse o canto para redimensionar\nPressione ENTER para confirmar",
-                                bg="#333333", fg="white", font=("Arial", 9))
-        instructions.place(relx=0.5, rely=0.5, anchor='center')
+        self.instructions = tk.Label(self.main_frame,
+                                text="Posicione e redimensione.\nPressione ENTER para iniciar.",
+                                bg="#222", fg="white", font=("Arial", 9))
+        self.instructions.place(relx=0.5, rely=0.5, anchor='center')
 
         # Bind da tecla Enter para confirmar
         self.root.bind("<Return>", self.on_confirm)
-        self.root.bind("<Escape>", self.on_cancel) # Permite cancelar com a tecla ESC
+        self.root.bind("<Escape>", self.on_cancel)
+
+    def update_region(self):
+        x, y = self.root.winfo_x(), self.root.winfo_y()
+        w, h = self.root.winfo_width(), self.root.winfo_height()
+        # Ajusta para capturar o conteúdo dentro da borda
+        self.region = {'top': y + 6, 'left': x + 6, 'width': w - 12, 'height': h - 12}
 
     def on_press(self, event):
         self._drag_start_x = event.x
@@ -392,6 +405,7 @@ class SelectionWindow:
         x = self.root.winfo_x() + (event.x - self._drag_start_x)
         y = self.root.winfo_y() + (event.y - self._drag_start_y)
         self.root.geometry(f"+{x}+{y}")
+        if self.is_confirmed: self.update_region()
         
     def on_press_resize(self, event):
         self._resize_start_x = event.x_root
@@ -404,36 +418,37 @@ class SelectionWindow:
         delta_y = event.y_root - self._resize_start_y
         new_width = self._resize_start_width + delta_x
         new_height = self._resize_start_height + delta_y
-        if new_width > 20 and new_height > 20: # Tamanho mínimo
+        if new_width > 40 and new_height > 40: # Tamanho mínimo
             self.root.geometry(f"{new_width}x{new_height}")
+        if self.is_confirmed: self.update_region()
 
     def on_confirm(self, event=None):
-        x, y = self.root.winfo_x(), self.root.winfo_y()
-        w, h = self.root.winfo_width(), self.root.winfo_height()
-        # Ajusta para capturar o conteúdo dentro da borda
-        self.region = {'top': y + 2, 'left': x + 2, 'width': w - 4, 'height': h - 4}
-        self.root.destroy()
+        if not self.is_confirmed:
+            self.is_confirmed = True
+            self.update_region()
+            self.instructions.config(text="Leitura em andamento...\nAjuste a qualquer momento.")
+            self.root.quit() # Encerra o mainloop inicial para o script principal continuar
         
     def on_cancel(self, event=None):
         self.region = None
+        self.is_confirmed = False
         self.root.destroy()
 
 def selecionar_regiao_com_gui():
     print("\n--- Calibração da Região de Leitura ---")
     print("Uma janela de seleção irá aparecer.")
-    print("1. Arraste a janela para posicioná-la sobre o número.")
-    print("2. Use o canto inferior direito para redimensioná-la.")
-    print("3. Pressione a tecla 'ENTER' para confirmar ou 'ESC' para cancelar.")
+    print("1. Arraste e redimensione a janela para enquadrar o número.")
+    print("2. Pressione 'ENTER' para iniciar a leitura ou 'ESC' para cancelar.")
     
     root = tk.Tk()
     app = SelectionWindow(root)
-    root.mainloop()
+    root.mainloop() # Este loop só termina quando on_confirm ou on_cancel é chamado
     
     if app.region and app.region['width'] > 0 and app.region['height'] > 0:
-        print(f"✅ Calibração Concluída! Região: {app.region}")
-        return app.region
+        print(f"✅ Calibração inicial concluída! Região: {app.region}")
+        return app
     else:
-        print("❌ Calibração cancelada ou inválida.")
+        print("❌ Calibração cancelada.")
         return None
 
 # ====================================================================
@@ -444,7 +459,7 @@ def processar_imagem_para_ocr(img_pil: Image.Image, threshold: int = 100) -> Ima
     try:
         ZOOM_FACTOR = 6
         width, height = img_pil.size
-        if width == 0 or height == 0: return img_pil
+        if width <= 0 or height <= 0: return img_pil
         
         img_zoomed = img_pil.convert('L').resize(
             (width * ZOOM_FACTOR, height * ZOOM_FACTOR),
@@ -468,86 +483,86 @@ def tentar_leitura_agressiva(img_pil: Image.Image, valid_range: List[str]) -> Op
     for psm in psm_para_testar:
         for threshold in thresholds_para_testar:
             config_ocr_agressivo = f'--oem 3 --psm {psm} -c tessedit_char_whitelist=0123456789'
-            
             img_processada = processar_imagem_para_ocr(img_pil, threshold=threshold)
             texto_lido = pytesseract.image_to_string(img_processada, config=config_ocr_agressivo)
             numero_str = re.sub(r'\D', '', texto_lido)
             
             if MODO_DEBUG:
-                print(f"[DEBUG-AGRESSIVO] PSM={psm}, Threshold={threshold} -> Leu: '{texto_lido.strip()}' -> Limpo: '{numero_str}'")
+                print(f"[DEBUG-AGRESSIVO] PSM={psm}, T={threshold} -> Leu: '{texto_lido.strip()}' -> Limpo: '{numero_str}'")
                 
             if numero_str and numero_str in valid_range:
                 if MODO_DEBUG:
                     print(f"[DEBUG] Sucesso na busca agressiva!")
+                    if not os.path.exists('debug'): os.makedirs('debug')
                     img_processada.save("debug/debug_sucesso_agressivo.png")
                 return numero_str
                 
     if MODO_DEBUG:
-        print("[DEBUG] Busca agressiva concluída. Nenhum número encontrado.")
+        print("[DEBUG] Busca agressiva concluída.")
     return None
 
 def main_monitor():
+    app_gui = None # Variável para guardar a instância da GUI
     if MODO_DEBUG:
         if not os.path.exists('debug'):
             os.makedirs('debug')
-        print("\n[AVISO] MODO DE DEBUG ATIVADO. O desempenho será mais lento.")
+        print("\n[AVISO] MODO DE DEBUG ATIVADO.")
         print("Imagens de diagnóstico serão guardadas na pasta 'debug'.")
 
     motor = configurar_e_preparar()
     if not motor: return
-    # A chamada da função antiga é substituída pela nova função gráfica
-    regiao_monitoramento = selecionar_regiao_com_gui()
-    if not regiao_monitoramento:
+    
+    app_gui = selecionar_regiao_com_gui()
+    if not app_gui:
         print("Programa encerrado.")
         return
     
-    print(f"\n✅ Tudo pronto! Iniciando monitoramento. Pressione Ctrl+C para parar.")
+    print(f"\n✅ Leitura iniciada! A janela de seleção permanecerá visível para ajustes.")
+    print("Pressione Ctrl+C na consola para parar.")
     valid_range = [str(i) for i in range(37)]
     if TIPO_ROLETA == 'AMERICANA': valid_range.append('00')
     
     config_ocr_padrao = r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789'
     ultimo_numero_lido = None
-    
     leitura_potencial = None
     contagem_estavel = 0
     LEITURAS_PARA_CONFIRMAR = 3
-    
     last_frame_np = None
     CHANGE_THRESHOLD = 30000 
     
     try:
         with mss.mss() as sct:
             while True:
+                regiao_monitoramento = app_gui.region
+                if regiao_monitoramento['width'] <= 0 or regiao_monitoramento['height'] <= 0:
+                    app_gui.root.update()
+                    time.sleep(0.1)
+                    continue
+
                 img_raw = sct.grab(regiao_monitoramento)
                 img_pil = Image.frombytes("RGB", img_raw.size, img_raw.bgra, "raw", "BGRX")
                 current_frame_np = np.array(img_pil.convert('L'))
 
                 if last_frame_np is not None:
                     diff = np.sum(np.abs(current_frame_np.astype(float) - last_frame_np.astype(float)))
-                    
-                    if MODO_DEBUG:
-                        print(f"[DEBUG] Diferença do frame: {diff:.0f} (Limiar: {CHANGE_THRESHOLD})", end='\r')
-
+                    if MODO_DEBUG: print(f"[DEBUG] Diferença do frame: {diff:.0f}", end='\r')
                     if diff < CHANGE_THRESHOLD:
-                        time.sleep(0.15)
+                        app_gui.root.update()
+                        time.sleep(0.1)
                         continue
                 
                 last_frame_np = current_frame_np
                 
                 if MODO_DEBUG:
-                    print("\n[DEBUG] Mudança visual detectada! A processar imagem...")
+                    print("\n[DEBUG] Mudança visual detectada! Processando...")
                     img_pil.save("debug/debug_captura_raw.png")
                 
                 img_processada_padrao = processar_imagem_para_ocr(img_pil)
-                
-                if MODO_DEBUG:
-                    img_processada_padrao.save("debug/debug_imagem_processada.png")
+                if MODO_DEBUG: img_processada_padrao.save("debug/debug_imagem_processada.png")
 
                 texto_lido = pytesseract.image_to_string(img_processada_padrao, config=config_ocr_padrao)
                 numero_atual = re.sub(r'\D', '', texto_lido)
-                
-                if MODO_DEBUG:
-                    print(f"[DEBUG] OCR Padrão leu: '{texto_lido.strip()}' -> Limpo: '{numero_atual}'")
+                if MODO_DEBUG: print(f"[DEBUG] OCR Padrão leu: '{texto_lido.strip()}' -> Limpo: '{numero_atual}'")
                 
                 if not numero_atual or numero_atual not in valid_range:
                     numero_atual = tentar_leitura_agressiva(img_pil, valid_range)
@@ -558,7 +573,7 @@ def main_monitor():
                     else:
                         leitura_potencial = numero_atual
                         contagem_estavel = 1
-                    print(f"[ANALISANDO] Lendo '{numero_atual}'... Confirmações: {contagem_estavel}/{LEITURAS_PARA_CONFIRMAR}  ", end='\r')
+                    print(f"[ANALISANDO] Lendo '{numero_atual}'... Confirmações: {contagem_estavel}/{LEITURAS_PARA_CONFIRMAR}", end='\r')
                 else:
                     leitura_potencial = None
                     contagem_estavel = 0
@@ -571,17 +586,18 @@ def main_monitor():
                     feedback = motor.processar_giro(numero_confirmado)
                     print(feedback)
                     ultimo_numero_lido = numero_confirmado
-                    
                     leitura_potencial = None
                     contagem_estavel = 0
                 
-                time.sleep(0.1) 
+                app_gui.root.update()
+                time.sleep(0.05) 
                 
     except KeyboardInterrupt:
         print("\n\nMonitoramento interrompido pelo utilizador.")
     except Exception as e:
         print(f"\nOcorreu um erro fatal no monitoramento: {e}")
     finally:
+        if app_gui: app_gui.root.destroy()
         if motor:
             print("\nEncerrando Assistente.")
             resultado_final = motor.banca.get_saldo() - motor.banca.valor_inicial
