@@ -357,7 +357,7 @@ class SelectionWindow:
         screen_width, screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
         start_x = (screen_width // 2) - (start_width // 2)
         start_y = (screen_height // 2) - (start_height // 2)
-        self.root.geometry(f'{start_width}x{start_height}+{start_x}+{y}')
+        self.root.geometry(f'{start_width}x{start_height}+{start_x}+{start_y}')
         self.update_region() # Define a região inicial
 
         # Frame principal com borda ciano
