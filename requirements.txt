@@ -1,5 +1,6 @@
-Pillow
 mss
 pytesseract
+Pillow
 keyboard
 pyautogui
+numpy
