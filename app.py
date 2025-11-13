@@ -29,6 +29,12 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/favicon.ico')
+def favicon():
+    """Return a simple favicon"""
+    return '', 204
+
+
 @app.route('/api/initialize', methods=['POST'])
 def initialize():
     """Initialize the session with bankroll and strategies"""
@@ -79,10 +85,10 @@ def warmup():
         data = request.json
         numbers = data.get('numbers', [])
 
-        if len(numbers) != v3.TIPO_ROLETA == 'EUROPEIA' and 12 or 12:
+        if len(numbers) != 12:
             return jsonify({
                 'success': False,
-                'error': f'Expected 12 numbers, got {len(numbers)}'
+                'error': f'Esperado 12 números, recebidos {len(numbers)}'
             }), 400
 
         # Process warmup numbers (reverse order - oldest first)
