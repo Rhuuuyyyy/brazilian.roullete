@@ -169,6 +169,9 @@ function startGame() {
         return;
     }
 
+    console.log('Starting game with warmup numbers:', state.warmupNumbers);
+    console.log('Numbers count:', state.warmupNumbers.length);
+
     showLoading();
     fetch('/api/warmup', {
         method: 'POST',
@@ -179,8 +182,12 @@ function startGame() {
             numbers: state.warmupNumbers
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('Response data:', data);
         hideLoading();
         if (data.success) {
             state.initialized = true;
@@ -192,6 +199,7 @@ function startGame() {
                 document.getElementById('numberInput').focus();
             }, 300);
         } else {
+            console.error('Server error:', data.error);
             showToast(data.error || 'Erro ao aquecer sistema', 'error');
         }
     })

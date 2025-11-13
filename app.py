@@ -83,16 +83,21 @@ def warmup():
     """Process warmup numbers"""
     try:
         data = request.json
+        logger.info(f"Warmup request received: {data}")
         numbers = data.get('numbers', [])
+        logger.info(f"Numbers received: {numbers}, count: {len(numbers)}")
 
         if len(numbers) != 12:
+            error_msg = f'Esperado 12 números, recebidos {len(numbers)}'
+            logger.error(error_msg)
             return jsonify({
                 'success': False,
-                'error': f'Esperado 12 números, recebidos {len(numbers)}'
+                'error': error_msg
             }), 400
 
         # Process warmup numbers (reverse order - oldest first)
         for num_str in reversed(numbers):
+            logger.info(f"Processing warmup number: {num_str}")
             v3._atualizar_historicos(num_str)
 
         return jsonify({
