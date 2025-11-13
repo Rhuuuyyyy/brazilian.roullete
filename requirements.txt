@@ -1,3 +1,7 @@
+# Core dependencies for manual version
+rich>=13.0.0
+
+# Dependencies for automated versions (optional)
 mss
 pytesseract
 Pillow
