@@ -1,10 +1,3 @@
-# Core dependencies for manual version
-rich>=13.0.0
-
-# Dependencies for automated versions (optional)
-mss
-pytesseract
-Pillow
-keyboard
-pyautogui
-numpy
+Flask==3.0.0
+flask-cors==4.0.0
+Werkzeug==3.0.1
