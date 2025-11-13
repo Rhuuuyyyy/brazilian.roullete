@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brazilian Roulette Assistant - Sistema Profissional de Apostas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Background Animation -->
+    <div class="background-animation"></div>
+
+    <!-- Main Container -->
+    <div class="container">
+
+        <!-- Header -->
+        <header class="header">
+            <div class="logo-container">
+                <div class="logo-icon">🎰</div>
+                <div class="logo-text">
+                    <h1>Brazilian Roulette</h1>
+                    <p>Sistema Profissional de Análise</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Setup Screen -->
+        <div id="setupScreen" class="screen active">
+            <div class="setup-card glass-card">
+                <h2>Configuração Inicial</h2>
+                <p class="subtitle">Configure sua banca e estratégias</p>
+
+                <div class="form-group">
+                    <label for="bankroll">
+                        <span class="label-icon">💰</span>
+                        Banca Inicial (R$)
+                    </label>
+                    <input type="number" id="bankroll" class="input-field" placeholder="100.00" step="0.50" min="1" value="100">
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <span class="label-icon">🎯</span>
+                        Estratégias Ativas
+                    </label>
+                    <div class="strategies-grid">
+                        <div class="strategy-checkbox">
+                            <input type="checkbox" id="strategy-COR" value="COR">
+                            <label for="strategy-COR">
+                                <span class="checkbox-custom"></span>
+                                Cor
+                            </label>
+                        </div>
+                        <div class="strategy-checkbox">
+                            <input type="checkbox" id="strategy-PAR_IMPAR" value="PAR_IMPAR">
+                            <label for="strategy-PAR_IMPAR">
+                                <span class="checkbox-custom"></span>
+                                Par/Ímpar
+                            </label>
+                        </div>
+                        <div class="strategy-checkbox">
+                            <input type="checkbox" id="strategy-ALTO_BAIXO" value="ALTO_BAIXO">
+                            <label for="strategy-ALTO_BAIXO">
+                                <span class="checkbox-custom"></span>
+                                Alto/Baixo
+                            </label>
+                        </div>
+                        <div class="strategy-checkbox">
+                            <input type="checkbox" id="strategy-DUZIA" value="DUZIA">
+                            <label for="strategy-DUZIA">
+                                <span class="checkbox-custom"></span>
+                                Dúzias
+                            </label>
+                        </div>
+                        <div class="strategy-checkbox">
+                            <input type="checkbox" id="strategy-COLUNA" value="COLUNA">
+                            <label for="strategy-COLUNA">
+                                <span class="checkbox-custom"></span>
+                                Colunas
+                            </label>
+                        </div>
+                        <div class="strategy-checkbox">
+                            <input type="checkbox" id="strategy-FRIO" value="FRIO">
+                            <label for="strategy-FRIO">
+                                <span class="checkbox-custom"></span>
+                                Números Frios
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="goToWarmup()">
+                    Continuar
+                    <span class="btn-arrow">→</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Warmup Screen -->
+        <div id="warmupScreen" class="screen">
+            <div class="warmup-card glass-card">
+                <h2>Aquecimento do Sistema</h2>
+                <p class="subtitle">Insira os últimos 12 resultados (do mais recente ao mais antigo)</p>
+
+                <div class="warmup-progress">
+                    <div class="progress-bar">
+                        <div id="warmupProgressBar" class="progress-fill"></div>
+                    </div>
+                    <p class="progress-text">
+                        <span id="warmupCount">0</span>/12 resultados
+                    </p>
+                </div>
+
+                <div class="warmup-input-container">
+                    <input type="number" id="warmupInput" class="input-field warmup-input"
+                           placeholder="Digite o número (0-36)" min="0" max="36" autocomplete="off">
+                    <button class="btn btn-add" onclick="addWarmupNumber()">
+                        Adicionar
+                    </button>
+                </div>
+
+                <div id="warmupNumbers" class="warmup-numbers"></div>
+
+                <button id="startGameBtn" class="btn btn-primary" onclick="startGame()" disabled>
+                    Iniciar Sistema
+                    <span class="btn-arrow">→</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="screen">
+
+            <!-- Stats Dashboard -->
+            <div class="stats-dashboard">
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-content">
+                        <p class="stat-label">Banca Atual</p>
+                        <p class="stat-value" id="currentBankroll">R$ 0,00</p>
+                    </div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-content">
+                        <p class="stat-label">Resultado</p>
+                        <p class="stat-value" id="profitLoss">R$ 0,00</p>
+                    </div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">🎲</div>
+                    <div class="stat-content">
+                        <p class="stat-label">Total de Giros</p>
+                        <p class="stat-value" id="totalSpins">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Game Area -->
+            <div class="game-area">
+
+                <!-- Left Panel - Input and Action -->
+                <div class="left-panel">
+
+                    <!-- Number Input -->
+                    <div class="input-card glass-card">
+                        <h3>Novo Resultado</h3>
+                        <div class="number-input-container">
+                            <input type="number" id="numberInput" class="input-field number-input"
+                                   placeholder="0-36" min="0" max="36" autocomplete="off">
+                            <button class="btn btn-spin" onclick="processSpin()">
+                                Processar
+                            </button>
+                        </div>
+                        <div id="lastNumber" class="last-number"></div>
+                    </div>
+
+                    <!-- Action Recommendation -->
+                    <div class="action-card glass-card">
+                        <h3>
+                            <span class="icon">🎯</span>
+                            Ação Recomendada
+                        </h3>
+                        <div id="actionContent" class="action-content">
+                            <p class="waiting-signal">Aguardando primeiro resultado...</p>
+                        </div>
+                    </div>
+
+                    <!-- Active Signals -->
+                    <div class="signals-card glass-card">
+                        <h3>
+                            <span class="icon">⚡</span>
+                            Sinais Ativos
+                        </h3>
+                        <div id="signalsContent" class="signals-content">
+                            <p class="no-signals">Nenhum sinal ativo</p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Right Panel - History and Analysis -->
+                <div class="right-panel">
+
+                    <!-- History -->
+                    <div class="history-card glass-card">
+                        <h3>
+                            <span class="icon">📜</span>
+                            Histórico Recente
+                        </h3>
+                        <div id="historyContent" class="history-content">
+                            <p class="no-history">Nenhum histórico ainda</p>
+                        </div>
+                    </div>
+
+                    <!-- Hot & Cold Numbers -->
+                    <div class="analysis-card glass-card">
+                        <h3>
+                            <span class="icon">🔥</span>
+                            Análise de Números
+                        </h3>
+                        <div class="hot-cold-container">
+                            <div class="hot-numbers">
+                                <h4>Números Quentes</h4>
+                                <div id="hotNumbers" class="number-tags">
+                                    <span class="number-tag hot">-</span>
+                                </div>
+                            </div>
+                            <div class="cold-numbers">
+                                <h4>Números Frios</h4>
+                                <div id="coldNumbers" class="number-tags">
+                                    <span class="number-tag cold">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Processando...</p>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
