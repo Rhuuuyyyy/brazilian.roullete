@@ -1,0 +1,11 @@
+{
+  "initial_bet": 0.5,
+  "martingale_factor": 2.0,
+  "max_consecutive_losses": 4,
+  "la_partage_enabled": true,
+  "min_sequence_simple": 3,
+  "min_sequence_dozen": 2,
+  "min_cold_number_delay": 37,
+  "roulette_type": "EUROPEAN",
+  "warmup_spins": 12
+}
