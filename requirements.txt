@@ -1,3 +1,10 @@
-Flask==3.0.0
-flask-cors==4.0.0
-Werkzeug==3.0.1
+# Brazilian Roulette Assistant v4.0
+# Dependencias Python
+
+# Web Framework
+Flask>=3.0.0
+flask-cors>=4.0.0
+Werkzeug>=3.0.1
+
+# CLI profissional (opcional - para roulette_assistant.py)
+rich>=13.0.0

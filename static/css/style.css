@@ -1,5 +1,5 @@
 /* ===================================
-   BRAZILIAN ROULETTE ASSISTANT
+   BRAZILIAN ROULETTE ASSISTANT v4.0
    Modern Casino UI Design
    =================================== */
 
@@ -46,6 +46,9 @@
 
     /* Transitions */
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Focus ring for accessibility */
+    --focus-ring: 0 0 0 3px rgba(255, 215, 0, 0.5);
 }
 
 /* === Reset & Base === */
@@ -897,3 +900,297 @@ body {
 .mb-1 { margin-bottom: var(--spacing-sm); }
 .mb-2 { margin-bottom: var(--spacing-md); }
 .mb-3 { margin-bottom: var(--spacing-lg); }
+
+/* === Accessibility === */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--primary);
+    color: var(--secondary);
+    padding: var(--spacing-sm) var(--spacing-md);
+    z-index: 100;
+    transition: top 0.3s;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
+/* Focus styles for accessibility */
+*:focus {
+    outline: none;
+}
+
+*:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* === Modal === */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    max-width: 400px;
+    padding: var(--spacing-xl);
+    text-align: center;
+    animation: modalIn 0.3s ease;
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-content h3 {
+    font-size: 1.5rem;
+    color: var(--primary);
+    margin-bottom: var(--spacing-md);
+}
+
+.modal-content p {
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-lg);
+}
+
+.modal-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: center;
+}
+
+/* === Secondary & Danger Buttons === */
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--primary);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: white;
+    width: 100%;
+    margin-top: var(--spacing-md);
+}
+
+.btn-danger:hover {
+    background: #e62e55;
+    transform: translateY(-2px);
+}
+
+/* === Form Help Text === */
+.form-help {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: var(--spacing-xs);
+}
+
+.form-help.center {
+    text-align: center;
+}
+
+/* === Fieldset & Legend === */
+fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+fieldset legend {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-weight: 500;
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+/* === Strategy Checkbox Enhanced === */
+.strategy-checkbox label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 400;
+}
+
+.checkbox-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.strategy-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.strategy-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.checkbox-visual {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    position: relative;
+    transition: var(--transition);
+}
+
+.strategy-checkbox input[type="checkbox"]:checked + label .checkbox-visual {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.strategy-checkbox input[type="checkbox"]:checked + label .checkbox-visual::after {
+    content: '\2713';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--secondary);
+    font-weight: bold;
+    font-size: 14px;
+}
+
+/* === Warmup Actions === */
+.warmup-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-lg);
+}
+
+.warmup-actions .btn {
+    flex: 1;
+}
+
+/* === Warmup Number Tags Enhanced === */
+.warmup-number-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-family: 'Orbitron', sans-serif;
+    color: white;
+    position: relative;
+}
+
+.warmup-number-tag.red {
+    background: var(--red);
+    border: 1px solid var(--red);
+}
+
+.warmup-number-tag.black {
+    background: var(--black);
+    border: 1px solid #333;
+}
+
+.warmup-number-tag.green {
+    background: var(--green);
+    border: 1px solid var(--green);
+}
+
+.remove-number {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    padding: 0;
+    line-height: 1;
+}
+
+.remove-number:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.warmup-empty {
+    width: 100%;
+    text-align: center;
+    color: var(--text-secondary);
+    padding: var(--spacing-md);
+    font-style: italic;
+}
+
+/* === Last Number Label === */
+.last-number-label {
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* === Toast Warning === */
+.toast.warning {
+    border-color: var(--warning);
+}
+
+/* === Logo Icon SVG === */
+.logo-icon svg {
+    color: var(--primary);
+    animation: float 3s ease-in-out infinite;
+}
