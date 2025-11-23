@@ -1,42 +1,53 @@
-// ========================================
-// Brazilian Roulette Assistant - Frontend
-// ========================================
+/**
+ * Brazilian Roulette Assistant - Frontend Application
+ * Arquitetura modular com gerenciamento de estado centralizado.
+ * @version 4.0.0
+ */
 
-// State Management
-const state = {
+// ============================================================================
+// STATE MANAGEMENT
+// ============================================================================
+
+const AppState = {
     bankroll: 0,
     strategies: {},
     warmupNumbers: [],
-    initialized: false
+    initialized: false,
+    currentScreen: 'setup'
 };
 
-// Utility Functions
-function showLoading() {
-    document.getElementById('loadingOverlay').classList.add('active');
-}
+// ============================================================================
+// CONSTANTS
+// ============================================================================
 
-function hideLoading() {
-    document.getElementById('loadingOverlay').classList.remove('active');
-}
+const RED_NUMBERS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 
-function showToast(message, type = 'success') {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.className = `toast ${type}`;
-    toast.classList.add('show');
+const NOMENCLATURE = {
+    'R': 'vermelho', 'B': 'preto',
+    'D1': '1a duzia', 'D2': '2a duzia', 'D3': '3a duzia',
+    'C1': '1a coluna', 'C2': '2a coluna', 'C3': '3a coluna',
+    'PAR': 'par', 'IMPAR': 'impar',
+    'BAIXO': 'baixo (1-18)', 'ALTO': 'alto (19-36)'
+};
 
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
-}
+const STRATEGY_NAMES = {
+    'COR': 'Cor',
+    'PAR_IMPAR': 'Par/Impar',
+    'ALTO_BAIXO': 'Alto/Baixo',
+    'DUZIA': 'Duzias',
+    'COLUNA': 'Colunas',
+    'FRIO': 'Numeros Frios'
+};
 
-function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(screen => {
-        screen.classList.remove('active');
-    });
-    document.getElementById(screenId).classList.add('active');
-}
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
 
+/**
+ * Formata valor para moeda brasileira.
+ * @param {number} value - Valor a ser formatado
+ * @returns {string} Valor formatado
+ */
 function formatCurrency(value) {
     return new Intl.NumberFormat('pt-BR', {
         style: 'currency',
@@ -44,338 +55,534 @@ function formatCurrency(value) {
     }).format(value);
 }
 
+/**
+ * Retorna a cor de um numero da roleta.
+ * @param {string|number} num - Numero da roleta
+ * @returns {string} 'red', 'black' ou 'green'
+ */
 function getNumberColor(num) {
-    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    if (num === '0' || num === '00') return 'green';
-    return redNumbers.includes(parseInt(num)) ? 'red' : 'black';
+    const n = parseInt(num);
+    if (num === '0' || num === '00' || n === 0) return 'green';
+    return RED_NUMBERS.has(n) ? 'red' : 'black';
 }
 
-// Setup Functions
-function goToWarmup() {
+/**
+ * Valida se um numero da roleta e valido.
+ * @param {string|number} num - Numero a validar
+ * @returns {boolean} Se e valido
+ */
+function isValidRouletteNumber(num) {
+    if (num === '00') return true;
+    const n = parseInt(num);
+    return !isNaN(n) && n >= 0 && n <= 36;
+}
+
+// ============================================================================
+// UI UTILITIES
+// ============================================================================
+
+/**
+ * Exibe o overlay de carregamento.
+ */
+function showLoading() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.classList.add('active');
+        overlay.setAttribute('aria-hidden', 'false');
+    }
+}
+
+/**
+ * Esconde o overlay de carregamento.
+ */
+function hideLoading() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.classList.remove('active');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+}
+
+/**
+ * Exibe uma notificacao toast.
+ * @param {string} message - Mensagem a exibir
+ * @param {string} type - Tipo: 'success', 'error', 'warning'
+ */
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+
+    toast.textContent = message;
+    toast.className = `toast ${type} show`;
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 4000);
+}
+
+/**
+ * Troca para uma tela especifica.
+ * @param {string} screenId - ID da tela
+ */
+function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('active');
+    });
+
+    const targetScreen = document.getElementById(screenId);
+    if (targetScreen) {
+        targetScreen.classList.add('active');
+        AppState.currentScreen = screenId.replace('Screen', '');
+
+        // Focus management for accessibility
+        const firstFocusable = targetScreen.querySelector('input, button, select, textarea');
+        if (firstFocusable) {
+            setTimeout(() => firstFocusable.focus(), 100);
+        }
+    }
+}
+
+/**
+ * Abre o modal de confirmacao.
+ */
+function openModal() {
+    const modal = document.getElementById('confirmModal');
+    if (modal) {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+}
+
+/**
+ * Fecha o modal de confirmacao.
+ */
+function closeModal() {
+    const modal = document.getElementById('confirmModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+}
+
+// ============================================================================
+// API FUNCTIONS
+// ============================================================================
+
+/**
+ * Realiza uma requisicao para a API.
+ * @param {string} endpoint - Endpoint da API
+ * @param {object} options - Opcoes do fetch
+ * @returns {Promise<object>} Resposta da API
+ */
+async function apiRequest(endpoint, options = {}) {
+    const defaultOptions = {
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
+
+    const finalOptions = { ...defaultOptions, ...options };
+
+    try {
+        const response = await fetch(endpoint, finalOptions);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Erro na requisicao');
+        }
+
+        return data;
+    } catch (error) {
+        console.error(`API Error [${endpoint}]:`, error);
+        throw error;
+    }
+}
+
+// ============================================================================
+// SETUP SCREEN
+// ============================================================================
+
+/**
+ * Processa o formulario de setup e avanca para warmup.
+ * @param {Event} event - Evento do formulario
+ */
+async function goToWarmup(event) {
+    if (event) event.preventDefault();
+
     const bankrollInput = document.getElementById('bankroll');
     const bankroll = parseFloat(bankrollInput.value);
 
+    // Validacao
     if (!bankroll || bankroll <= 0) {
-        showToast('Por favor, insira uma banca válida', 'error');
+        showToast('Por favor, insira uma banca valida', 'error');
         bankrollInput.focus();
         return;
     }
 
-    // Get selected strategies
+    // Coleta estrategias selecionadas
     const strategies = {};
     document.querySelectorAll('.strategy-checkbox input[type="checkbox"]').forEach(checkbox => {
         strategies[checkbox.value] = checkbox.checked;
     });
 
-    // Check if at least one strategy is selected
+    // Verifica se pelo menos uma estrategia foi selecionada
     const hasActiveStrategy = Object.values(strategies).some(v => v === true);
     if (!hasActiveStrategy) {
-        showToast('Selecione pelo menos uma estratégia', 'error');
+        showToast('Selecione pelo menos uma estrategia', 'error');
         return;
     }
 
-    // Save to state
-    state.bankroll = bankroll;
-    state.strategies = strategies;
+    // Salva no estado
+    AppState.bankroll = bankroll;
+    AppState.strategies = strategies;
 
-    // Initialize backend
+    // Inicializa backend
     showLoading();
-    fetch('/api/initialize', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            bankroll: bankroll,
-            strategies: strategies
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
+
+    try {
+        const data = await apiRequest('/api/initialize', {
+            method: 'POST',
+            body: JSON.stringify({
+                bankroll: bankroll,
+                strategies: strategies
+            })
+        });
+
         hideLoading();
+
         if (data.success) {
             showScreen('warmupScreen');
-            showToast('Configuração salva com sucesso!');
-            // Focus on warmup input
-            setTimeout(() => {
-                document.getElementById('warmupInput').focus();
-            }, 300);
+            showToast('Configuracao salva com sucesso!');
         } else {
             showToast(data.error || 'Erro ao inicializar', 'error');
         }
-    })
-    .catch(error => {
+    } catch (error) {
         hideLoading();
-        console.error('Error:', error);
         showToast('Erro ao conectar com o servidor', 'error');
-    });
+    }
 }
 
-// Warmup Functions
-function addWarmupNumber() {
+// ============================================================================
+// WARMUP SCREEN
+// ============================================================================
+
+/**
+ * Adiciona um numero ao warmup.
+ * @param {Event} event - Evento do formulario
+ */
+function addWarmupNumber(event) {
+    if (event) event.preventDefault();
+
     const input = document.getElementById('warmupInput');
     const num = input.value.trim();
 
     if (num === '') return;
 
-    const numInt = parseInt(num);
-    if (isNaN(numInt) || numInt < 0 || numInt > 36) {
-        showToast('Número inválido! Use 0-36', 'error');
+    if (!isValidRouletteNumber(num)) {
+        showToast('Numero invalido! Use 0-36', 'error');
         input.value = '';
         input.focus();
         return;
     }
 
-    if (state.warmupNumbers.length >= 12) {
-        showToast('Máximo de 12 números atingido', 'error');
+    if (AppState.warmupNumbers.length >= 12) {
+        showToast('Maximo de 12 numeros atingido', 'warning');
         return;
     }
 
-    state.warmupNumbers.push(num);
+    AppState.warmupNumbers.push(num);
     updateWarmupDisplay();
 
     input.value = '';
     input.focus();
 
-    if (state.warmupNumbers.length === 12) {
+    if (AppState.warmupNumbers.length === 12) {
         document.getElementById('startGameBtn').disabled = false;
-        showToast('12 números inseridos! Pronto para começar', 'success');
+        showToast('12 numeros inseridos! Pronto para comecar', 'success');
     }
 }
 
-function updateWarmupDisplay() {
-    const container = document.getElementById('warmupNumbers');
-    const count = state.warmupNumbers.length;
-
-    // Update progress bar
-    const progressBar = document.getElementById('warmupProgressBar');
-    progressBar.style.width = `${(count / 12) * 100}%`;
-
-    // Update count
-    document.getElementById('warmupCount').textContent = count;
-
-    // Update numbers display
-    container.innerHTML = state.warmupNumbers.map((num, index) => {
-        const color = getNumberColor(num);
-        return `<div class="warmup-number-tag" style="order: ${12 - index}">
-            ${num}
-        </div>`;
-    }).join('');
+/**
+ * Limpa todos os numeros do warmup.
+ */
+function clearWarmup() {
+    AppState.warmupNumbers = [];
+    updateWarmupDisplay();
+    document.getElementById('startGameBtn').disabled = true;
+    document.getElementById('warmupInput').focus();
 }
 
-function startGame() {
-    if (state.warmupNumbers.length !== 12) {
-        showToast('Insira exatamente 12 números', 'error');
+/**
+ * Atualiza a exibicao do warmup.
+ */
+function updateWarmupDisplay() {
+    const container = document.getElementById('warmupNumbers');
+    const count = AppState.warmupNumbers.length;
+
+    // Atualiza barra de progresso
+    const progressBar = document.getElementById('warmupProgressBar');
+    const progressPercent = (count / 12) * 100;
+    progressBar.style.width = `${progressPercent}%`;
+
+    // Atualiza contador
+    document.getElementById('warmupCount').textContent = count;
+
+    // Atualiza ARIA
+    const progressContainer = document.querySelector('.warmup-progress');
+    if (progressContainer) {
+        progressContainer.setAttribute('aria-valuenow', count);
+    }
+
+    // Atualiza display de numeros
+    if (count === 0) {
+        container.innerHTML = '<p class="warmup-empty">Nenhum numero adicionado</p>';
+    } else {
+        container.innerHTML = AppState.warmupNumbers.map((num, index) => {
+            const color = getNumberColor(num);
+            return `<div class="warmup-number-tag ${color}" title="Numero ${index + 1}">
+                ${num}
+                <button type="button" class="remove-number" onclick="removeWarmupNumber(${index})" aria-label="Remover numero ${num}">x</button>
+            </div>`;
+        }).join('');
+    }
+}
+
+/**
+ * Remove um numero do warmup.
+ * @param {number} index - Indice do numero
+ */
+function removeWarmupNumber(index) {
+    AppState.warmupNumbers.splice(index, 1);
+    updateWarmupDisplay();
+    document.getElementById('startGameBtn').disabled = AppState.warmupNumbers.length !== 12;
+}
+
+/**
+ * Inicia o jogo apos o warmup.
+ */
+async function startGame() {
+    if (AppState.warmupNumbers.length !== 12) {
+        showToast('Insira exatamente 12 numeros', 'error');
         return;
     }
 
-    console.log('Starting game with warmup numbers:', state.warmupNumbers);
-    console.log('Numbers count:', state.warmupNumbers.length);
-
     showLoading();
-    fetch('/api/warmup', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            numbers: state.warmupNumbers
-        })
-    })
-    .then(response => {
-        console.log('Response status:', response.status);
-        return response.json();
-    })
-    .then(data => {
-        console.log('Response data:', data);
+
+    try {
+        const data = await apiRequest('/api/warmup', {
+            method: 'POST',
+            body: JSON.stringify({
+                numbers: AppState.warmupNumbers
+            })
+        });
+
         hideLoading();
+
         if (data.success) {
-            state.initialized = true;
+            AppState.initialized = true;
             showScreen('gameScreen');
             updateStats();
             showToast('Sistema iniciado com sucesso!');
-            // Focus on number input
-            setTimeout(() => {
-                document.getElementById('numberInput').focus();
-            }, 300);
         } else {
-            console.error('Server error:', data.error);
             showToast(data.error || 'Erro ao aquecer sistema', 'error');
         }
-    })
-    .catch(error => {
+    } catch (error) {
         hideLoading();
-        console.error('Error:', error);
         showToast('Erro ao conectar com o servidor', 'error');
-    });
+    }
 }
 
-// Game Functions
-function processSpin() {
+// ============================================================================
+// GAME SCREEN
+// ============================================================================
+
+/**
+ * Processa um novo spin da roleta.
+ * @param {Event} event - Evento do formulario
+ */
+async function processSpin(event) {
+    if (event) event.preventDefault();
+
     const input = document.getElementById('numberInput');
     const num = input.value.trim();
 
     if (num === '') return;
 
-    const numInt = parseInt(num);
-    if (isNaN(numInt) || numInt < 0 || numInt > 36) {
-        showToast('Número inválido! Use 0-36', 'error');
+    if (!isValidRouletteNumber(num)) {
+        showToast('Numero invalido! Use 0-36', 'error');
         input.value = '';
         input.focus();
         return;
     }
 
     showLoading();
-    fetch('/api/spin', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            number: num
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
+
+    try {
+        const data = await apiRequest('/api/spin', {
+            method: 'POST',
+            body: JSON.stringify({ number: num })
+        });
+
         hideLoading();
+
         if (data.success) {
             updateGameDisplay(data);
             input.value = '';
             input.focus();
         } else {
-            showToast(data.error || 'Erro ao processar número', 'error');
+            showToast(data.error || 'Erro ao processar numero', 'error');
         }
-    })
-    .catch(error => {
+    } catch (error) {
         hideLoading();
-        console.error('Error:', error);
         showToast('Erro ao conectar com o servidor', 'error');
-    });
+    }
 }
 
+/**
+ * Atualiza toda a exibicao do jogo.
+ * @param {object} data - Dados retornados pela API
+ */
 function updateGameDisplay(data) {
-    // Update stats
-    const currentBankroll = document.getElementById('currentBankroll');
-    const profitLoss = document.getElementById('profitLoss');
-    const totalSpins = document.getElementById('totalSpins');
+    // Atualiza estatisticas
+    updateBankrollDisplay(data.bankroll, data.profit_loss);
+    document.getElementById('totalSpins').textContent = data.history.length;
 
-    currentBankroll.textContent = formatCurrency(data.bankroll);
+    // Atualiza ultimo numero
+    updateLastNumber(data.number, data.color);
 
-    const pl = data.profit_loss;
-    profitLoss.textContent = formatCurrency(Math.abs(pl));
-    profitLoss.className = 'stat-value';
-    if (pl > 0) {
-        profitLoss.classList.add('positive');
-        profitLoss.textContent = '+' + profitLoss.textContent;
-    } else if (pl < 0) {
-        profitLoss.classList.add('negative');
-        profitLoss.textContent = '-' + profitLoss.textContent;
-    }
-
-    totalSpins.textContent = data.history.length;
-
-    // Update last number
-    const lastNumber = document.getElementById('lastNumber');
-    const color = getNumberColor(data.number);
-    lastNumber.innerHTML = `
-        <p style="margin-bottom: 8px; color: var(--text-secondary);">Último número:</p>
-        <div class="number-badge ${color}">${data.number}</div>
-    `;
-
-    // Update action
+    // Atualiza acao recomendada
     updateAction(data);
 
-    // Update signals
+    // Atualiza sinais ativos
     updateSignals(data.signals);
 
-    // Update history
+    // Atualiza historico
     updateHistory(data.history);
 
-    // Update hot/cold numbers
+    // Atualiza numeros quentes/frios
     updateHotCold(data.hot_numbers, data.cold_numbers);
 }
 
+/**
+ * Atualiza a exibicao da banca.
+ * @param {number} bankroll - Banca atual
+ * @param {number} profitLoss - Lucro/Prejuizo
+ */
+function updateBankrollDisplay(bankroll, profitLoss) {
+    const bankrollEl = document.getElementById('currentBankroll');
+    const plEl = document.getElementById('profitLoss');
+
+    bankrollEl.textContent = formatCurrency(bankroll);
+
+    plEl.textContent = formatCurrency(Math.abs(profitLoss));
+    plEl.className = 'stat-value';
+
+    if (profitLoss > 0) {
+        plEl.classList.add('positive');
+        plEl.textContent = '+' + plEl.textContent;
+    } else if (profitLoss < 0) {
+        plEl.classList.add('negative');
+        plEl.textContent = '-' + plEl.textContent;
+    }
+}
+
+/**
+ * Atualiza o ultimo numero exibido.
+ * @param {string} number - Numero
+ * @param {string} color - Cor (R, B, G)
+ */
+function updateLastNumber(number, color) {
+    const container = document.getElementById('lastNumber');
+    const colorClass = color === 'R' ? 'red' : (color === 'B' ? 'black' : 'green');
+
+    container.innerHTML = `
+        <p class="last-number-label">Ultimo numero:</p>
+        <div class="number-badge ${colorClass}">${number}</div>
+    `;
+}
+
+/**
+ * Atualiza a acao recomendada.
+ * @param {object} data - Dados do spin
+ */
 function updateAction(data) {
     const actionContent = document.getElementById('actionContent');
 
     if (data.signals && data.signals.length > 0) {
-        const instructions = [];
-
-        data.signals.forEach(signal => {
-            const nomenclature = {
-                'R': 'vermelho', 'B': 'preto',
-                'D1': '1ª dúzia', 'D2': '2ª dúzia', 'D3': '3ª dúzia',
-                'C1': '1ª coluna', 'C2': '2ª coluna', 'C3': '3ª coluna',
-                'PAR': 'par', 'IMPAR': 'ímpar',
-                'BAIXO': 'baixo (1-18)', 'ALTO': 'alto (19-36)'
-            };
-
-            const term = nomenclature[signal.target] || signal.target;
+        const instructions = data.signals.map(signal => {
+            const term = NOMENCLATURE[signal.target] || signal.target;
             const amount = formatCurrency(signal.amount);
 
             if (signal.strategy === 'DUZIA' || signal.strategy === 'COLUNA') {
-                instructions.push(`${amount} na ${term}`);
+                return `${amount} na ${term}`;
             } else if (signal.strategy === 'FRIO') {
-                instructions.push(`${amount} no número ${signal.target}`);
+                return `${amount} no numero ${signal.target}`;
             } else {
-                instructions.push(`${amount} no ${term}`);
+                return `${amount} no ${term}`;
             }
         });
 
         const finalText = instructions.join(' e ');
-        actionContent.innerHTML = `<p class="action-instruction">💰 ${finalText}</p>`;
+        actionContent.innerHTML = `<p class="action-instruction">${finalText}</p>`;
     } else {
         actionContent.innerHTML = '<p class="waiting-signal">Aguarde Sinal...</p>';
     }
 }
 
+/**
+ * Atualiza os sinais ativos.
+ * @param {Array} signals - Lista de sinais
+ */
 function updateSignals(signals) {
-    const signalsContent = document.getElementById('signalsContent');
+    const container = document.getElementById('signalsContent');
 
     if (!signals || signals.length === 0) {
-        signalsContent.innerHTML = '<p class="no-signals">Nenhum sinal ativo</p>';
+        container.innerHTML = '<p class="no-signals">Nenhum sinal ativo</p>';
         return;
     }
 
-    signalsContent.innerHTML = signals.map(signal => {
-        const strategyNames = {
-            'COR': 'Cor',
-            'PAR_IMPAR': 'Par/Ímpar',
-            'ALTO_BAIXO': 'Alto/Baixo',
-            'DUZIA': 'Dúzias',
-            'COLUNA': 'Colunas',
-            'FRIO': 'Números Frios'
-        };
+    container.innerHTML = signals.map(signal => {
+        const strategyName = STRATEGY_NAMES[signal.strategy] || signal.strategy;
+        const term = NOMENCLATURE[signal.target] || signal.target;
 
         return `
             <div class="signal-item">
-                <div class="signal-strategy">${strategyNames[signal.strategy] || signal.strategy}</div>
+                <div class="signal-strategy">${strategyName}</div>
                 <div class="signal-details">
-                    Aposta: ${formatCurrency(signal.amount)} em ${signal.target}
-                    ${signal.losses > 0 ? ` • Perdas: ${signal.losses}` : ''}
+                    Aposta: ${formatCurrency(signal.amount)} em ${term}
+                    ${signal.losses > 0 ? ` - Perdas: ${signal.losses}` : ''}
                 </div>
             </div>
         `;
     }).join('');
 }
 
+/**
+ * Atualiza o historico de numeros.
+ * @param {Array} history - Lista de numeros
+ */
 function updateHistory(history) {
-    const historyContent = document.getElementById('historyContent');
+    const container = document.getElementById('historyContent');
 
     if (!history || history.length === 0) {
-        historyContent.innerHTML = '<p class="no-history">Nenhum histórico ainda</p>';
+        container.innerHTML = '<p class="no-history">Nenhum historico ainda</p>';
         return;
     }
 
-    // Show last 20 numbers, most recent first
+    // Mostra os ultimos 20, mais recente primeiro
     const recent = history.slice(-20).reverse();
 
-    historyContent.innerHTML = recent.map(num => {
+    container.innerHTML = recent.map(num => {
         const color = getNumberColor(num);
         return `<div class="history-number ${color}">${num}</div>`;
     }).join('');
 }
 
+/**
+ * Atualiza os numeros quentes e frios.
+ * @param {Array} hotNumbers - Numeros quentes
+ * @param {Array} coldNumbers - Numeros frios
+ */
 function updateHotCold(hotNumbers, coldNumbers) {
     const hotContainer = document.getElementById('hotNumbers');
     const coldContainer = document.getElementById('coldNumbers');
@@ -397,62 +604,93 @@ function updateHotCold(hotNumbers, coldNumbers) {
     }
 }
 
-function updateStats() {
-    fetch('/api/stats')
-    .then(response => response.json())
-    .then(data => {
+/**
+ * Atualiza as estatisticas.
+ */
+async function updateStats() {
+    try {
+        const data = await apiRequest('/api/stats');
+
         if (data.success) {
-            document.getElementById('currentBankroll').textContent = formatCurrency(data.bankroll);
-
-            const pl = data.profit_loss;
-            const profitLoss = document.getElementById('profitLoss');
-            profitLoss.textContent = formatCurrency(Math.abs(pl));
-            profitLoss.className = 'stat-value';
-            if (pl > 0) {
-                profitLoss.classList.add('positive');
-                profitLoss.textContent = '+' + profitLoss.textContent;
-            } else if (pl < 0) {
-                profitLoss.classList.add('negative');
-                profitLoss.textContent = '-' + profitLoss.textContent;
-            }
-
+            updateBankrollDisplay(data.bankroll, data.profit_loss);
             document.getElementById('totalSpins').textContent = data.total_spins;
+            updateHotCold(data.hot_numbers, data.cold_numbers);
+            updateHistory(data.history);
         }
-    })
-    .catch(error => {
-        console.error('Error fetching stats:', error);
-    });
+    } catch (error) {
+        console.error('Erro ao buscar estatisticas:', error);
+    }
 }
 
-// Event Listeners
+// ============================================================================
+// RESET FUNCTIONS
+// ============================================================================
+
+/**
+ * Exibe confirmacao de reset.
+ */
+function confirmReset() {
+    openModal();
+}
+
+/**
+ * Executa o reset da sessao.
+ */
+async function executeReset() {
+    closeModal();
+    showLoading();
+
+    try {
+        const data = await apiRequest('/api/reset', {
+            method: 'POST'
+        });
+
+        hideLoading();
+
+        if (data.success) {
+            // Reseta estado local
+            AppState.bankroll = 0;
+            AppState.strategies = {};
+            AppState.warmupNumbers = [];
+            AppState.initialized = false;
+
+            // Volta para tela inicial
+            showScreen('setupScreen');
+            showToast('Sessao encerrada com sucesso');
+        } else {
+            showToast(data.error || 'Erro ao resetar', 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        showToast('Erro ao conectar com o servidor', 'error');
+    }
+}
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Allow Enter key on inputs
-    document.getElementById('bankroll')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            goToWarmup();
-        }
-    });
+    // Inicializa display do warmup
+    updateWarmupDisplay();
 
-    document.getElementById('warmupInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            addWarmupNumber();
-        }
-    });
-
-    document.getElementById('numberInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            processSpin();
-        }
-    });
-
-    // Auto-focus on first input
+    // Focus inicial
     setTimeout(() => {
-        document.getElementById('bankroll')?.focus();
-    }, 500);
+        const bankrollInput = document.getElementById('bankroll');
+        if (bankrollInput) bankrollInput.focus();
+    }, 300);
 });
 
-// Make functions globally available
+// ============================================================================
+// GLOBAL EXPORTS
+// ============================================================================
+
 window.goToWarmup = goToWarmup;
 window.addWarmupNumber = addWarmupNumber;
+window.clearWarmup = clearWarmup;
+window.removeWarmupNumber = removeWarmupNumber;
 window.startGame = startGame;
 window.processSpin = processSpin;
+window.confirmReset = confirmReset;
+window.executeReset = executeReset;
+window.closeModal = closeModal;
